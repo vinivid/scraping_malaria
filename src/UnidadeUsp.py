@@ -1,10 +1,9 @@
-from CursoUsp import CursoUsp
-
 class UnidadeUsp:
     nome : str
-    cursos : dict[str, CursoUsp]
+    cursos : set[str]
 
-    def __init__(self):
-        pass
+    def __init__(self, nome : str, cursos : set[str]):
+        self.nome = nome
+        self.cursos = cursos
 
     #Outros métodos que talvez sejam necessarios

@@ -1,10 +1,7 @@
-from DisciplinaUsp import DisciplinaUsp
-from UnidadeUsp import UnidadeUsp
-
 class CursoUsp:
-    unidade_responsavel : UnidadeUsp
+    unidade_responsavel : str
     nome : str 
-    disciplinas : dict[str, DisciplinaUsp]
+    disciplinas : dict[str, str]
 
     def __init__(self) -> None:
         pass
