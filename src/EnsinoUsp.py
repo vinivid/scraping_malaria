@@ -38,29 +38,20 @@ class EnsinoUsp:
 
         cursos_soup = BeautifulSoup(navegador.page_source, features="html.parser")
 
-        #Pegando o seletor de unidades e pegando o nome de todas as unidades
         cursos_id : Tag = cursos_soup.find(id='comboUnidade')
-        # São todos os cursos no seletor com exceção do curso vazio
         unidades = [child.get_text() for child in cursos_id.children 
                     if (type(child) is Tag) and child.get('value') != '']
 
-        # Esse loop representa clicar em cada elemento. Em XPath o index
-        # de um filho começa em 1, então devemos pular o 1 pq ele é o seletor
-        # vazio. A quantidade de elementos que terão de ser selecionados
-        # é a quantidade de unidades + 2 por causa do elemento vazio ignorado
-        # que adiciona 1. E para o loop ser inclusivo e ir até o ultimo elemento 
         for seletor, unidade in zip(range(2, len(unidades) + 2), unidades):
-            # Clica na unidade selecionada e espera que os cursos da unidade carreguem
             seletor_de_cursos.click()
             seletor_de_cursos.find_element(By.XPATH, f'//option[{seletor}]').click()
+            # Novamente é necessario esperar a lista de cursos
             WebDriverWait(navegador, 60).until(ec.presence_of_element_located((By.CSS_SELECTOR, "#comboCurso :nth-child(2)")))
 
-            # Pega todos os cursos, que é o mesmo seletor das unidades então a mesma lógica
             cursos_soup = BeautifulSoup(navegador.page_source, features="html.parser")
             cursos = [child.get_text() for child in cursos_soup.find(id='comboCurso') 
                     if (type(child) is Tag) and child.get('value') != '']
 
-            # Isso ja informação o suficiente para criar uma unidade            
             self.unidades.append(UnidadeUsp(unidade, set(cursos)))
             
 
