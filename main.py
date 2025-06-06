@@ -1,8 +1,7 @@
-from bs4 import BeautifulSoup
-from src.CursosUsp import CursosUsp
+from src.EnsinoUsp import EnsinoUsp
 
 def main():
-    a = CursosUsp()
+    a = EnsinoUsp()
     
 if __name__ == "__main__":
     main()
