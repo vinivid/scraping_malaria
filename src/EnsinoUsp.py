@@ -29,14 +29,14 @@ class EnsinoUsp:
     ABA_BUSCAR  = 'step1-tab'
     ABA_GRADE   = 'step4-tab' 
 
-    def _get_unidades(self, nav : Chrome) -> list[Tag]:
+    def _get_unidades(self, nav : Chrome) -> list[str]:
         # Demora um pouco para a lista das unidades aparecerem então é necessario esperar
         WebDriverWait(nav, 60).until(ec.presence_of_element_located((By.CSS_SELECTOR, "#comboUnidade :nth-child(2)")))
         unidades_soup = BeautifulSoup(nav.page_source, features="html.parser")
         return [child.get_text() for child in unidades_soup.find(id='comboUnidade').children 
                 if (type(child) is Tag) and child.get('value') != '']
 
-    def _get_cursos(self, nav : Chrome) -> list[Tag]:
+    def _get_cursos(self, nav : Chrome) -> list[str]:
         # Novamente é necessario esperar a lista de cursos
         WebDriverWait(nav, 60).until(ec.presence_of_element_located((By.CSS_SELECTOR, "#comboCurso :nth-child(2)")))
 
