@@ -9,6 +9,7 @@ from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
+import time
 
 from .UnidadeUsp import UnidadeUsp
 from .CursoUsp import CursoUsp
@@ -30,6 +31,18 @@ class EnsinoUsp:
     ABA_GRADE   = 'step4-tab' 
 
     def _get_unidades(self, nav : Chrome) -> list[str]:
+        """
+        Pega o nome de todas as unidades presentes no
+        seletor de unidades.
+
+        :param nav: O navegador para scraping dos dados. Ele
+            já deve estar na aba de carreiras no site do jupiter.
+        :type nav: Chrome
+
+        :return: Retorna uma lista contendo o nome de cada
+            unidade como uma string.
+        :rtype: list[str]
+        """
         # Demora um pouco para a lista das unidades aparecerem então é necessario esperar
         WebDriverWait(nav, 60).until(ec.presence_of_element_located((By.CSS_SELECTOR, "#comboUnidade :nth-child(2)")))
         unidades_soup = BeautifulSoup(nav.page_source, features="html.parser")
@@ -37,6 +50,19 @@ class EnsinoUsp:
                 if (type(child) is Tag) and child.get('value') != '']
 
     def _get_cursos(self, nav : Chrome) -> list[str]:
+        """
+        Pega o nome de todos os cursos presentes no
+        seletor de cursos.
+
+        :param nav: O navegador para scraping dos dados. Ele
+            já deve ter selecionado e clicado pelo menos uma unidade
+            para que o seletor de cursos carregue.
+        :type nav: Chrome
+
+        :return: Retorna uma lista contendo o nome de cada
+            curso como uma string.
+        :rtype: list[str]
+        """
         # Novamente é necessario esperar a lista de cursos
         WebDriverWait(nav, 60).until(ec.presence_of_element_located((By.CSS_SELECTOR, "#comboCurso :nth-child(2)")))
 
@@ -45,6 +71,22 @@ class EnsinoUsp:
                     if (type(child) is Tag) and child.get('value') != '']       
 
     def _click_aba(self, nav : Chrome, aba : str) -> None:
+        """
+        Clica eu uma das abas 'buscar', 'informações do curso',
+        'projeto pedagógico' ou 'grade curricular'. A tentativa
+        de clicar na aba sera infinita até que seja possível 
+        clicar.
+
+        :param nav: O navegador para scraping dos dados. Ele
+            não pode estar com o popup de erro se não essa função
+            ficara infinitamente tentando clicar em uma das abas.
+        :type nav: Chrome
+        :param aba: Uma string do id da aba ser clicada. Os id seguem 
+            o padrão, 'step1-tab', 'step2-tab' ..., dentro dessa classe
+            são disponibilizadas duas constantes que já possuem os id's
+            das duas abas que serão necessarias clicar.
+        :type aba: str
+        """
         while True:
             try:
                 nav.find_element(By.ID, aba).click()
@@ -53,12 +95,33 @@ class EnsinoUsp:
                 continue
 
     def _esperar_carregar(self, nav : Chrome) -> None:
+        """
+        Espera o popup de carregar desaparecer.
+
+        :param nav: O navegador para scraping dos dados. Asume
+            que o navegador acabou de fazer algo que faz com que
+            o popup apareça.
+        :type nav: Chrome
+        """
+        time.sleep(0.1)
         WebDriverWait(nav, 10).until(
             lambda nav: nav.execute_script("return jQuery.active == 0")
         )
-        WebDriverWait(nav, 10).until(ec.invisibility_of_element_located((By.CLASS_NAME, 'blockUI.blockOverlay')))  
+        WebDriverWait(nav, 30).until(ec.invisibility_of_element_located((By.CLASS_NAME, 'blockUI.blockOverlay')))  
 
-    def _checa_erro_popup(self, nav : Chrome) -> bool:    
+    def _checa_erro_popup(self, nav : Chrome) -> bool:
+        """
+        Checa pelo popup de erro (informações não encontradas).
+        Se ele for encontrado, fecha ele.
+
+        :param nav: O navegador para scraping dos dados. Asume
+            que o navegador acabou de fazer algo que possivelmente
+            faça que o popup apareça.
+        :type nav: Chrome
+        :return: Retorna True se o popup foi encontrado, False caso
+            contrario.
+        :rtype: bool
+        """   
         self._esperar_carregar(nav)
         try:
             nav.find_element(By.ID, 'err')
@@ -67,11 +130,36 @@ class EnsinoUsp:
         except NoSuchElementException:
             return False
 
-    def _get_curso_info(self, nav : Chrome) -> Tag:    
+    def _get_curso_info(self, nav : Chrome) -> Tag:
+        """
+        Pega a aba das informações do curso.
+
+        :param nav: O navegador para scraping dos dados. Asume
+            que o navegador clicou no botão de enviar após selecionar
+            um curso.
+        :type nav: Chrome
+        :return: Aba de informações para scraping.
+        :rtype: Tag
+        """      
         self._esperar_carregar(nav)
         return BeautifulSoup(nav.page_source, features="html.parser").find(id='step2')
     
     def _get_disciplinas(self, nav : Chrome) -> tuple[Tag, list[tuple[str, Tag]]]:
+        """
+        Pega a aba da grade curricular do curso e as informações
+        de cada disciplina na grade deste curso
+
+        :param nav: O navegador para scraping dos dados. Asume
+            que o navegador clicou no botão de enviar após selecionar
+            um curso.
+        :type nav: Chrome
+        :return: A função retorna a aba da grade para scraping na primeira
+            posição da tupla. Na segunda posição da tupla retorna uma lista
+            de tuplas contendo em seu primeiro elemento o código de uma
+            disciplina do curso como uma string, e no segundo elemento 
+            o popup das informações da disciplina para scraping.
+        :rtype: tuple[Tag, list[tuple[str, Tag]]]
+        """     
         self._esperar_carregar(nav)
         self._click_aba(nav, self.ABA_GRADE)
         self._esperar_carregar(nav)
@@ -93,13 +181,14 @@ class EnsinoUsp:
                 "ui-resizable"
             ])
 
-            def classes_iguais(tag):
+            def classes_iguais(tag : Tag):
                 return (
                     tag.name == 'div' and
                     tag.has_attr('class') and
                     set(tag['class']) == classes_do_bloco
                 )
 
+            # Procurar apenas pela classes usando o class_ não da certo, então utiliza-se essa forma.
             disciplina_soup : Tag = BeautifulSoup(nav.page_source, "html.parser").find(classes_iguais)
             disciplina_e_info.append((dis.text, disciplina_soup))
             self._esperar_carregar(nav)
@@ -111,6 +200,13 @@ class EnsinoUsp:
 
 
     def _ini_chrome(self) -> Chrome:
+        """
+        Inicializa o webdriver do Chrome. **É necessario que você
+        tenha o Chrome instalado no seu computador no caminho padrão.**
+
+        :return: O navegador para webscraping.
+        :rtype: Chrome
+        """      
         options = Options()
         options.add_argument("--log-level=3")
         options.add_experimental_option('excludeSwitches', ['enable-logging'])
@@ -131,7 +227,26 @@ class EnsinoUsp:
 
         unidades = self._get_unidades(navegador)        
 
-        for seletor, unidade in zip(range(2, len(unidades) + 2), unidades):
+        qtd_unidades = 0
+        print(f'Quantidade de unidades a serem scrapdas (<=0 para todas as unidades) (de 1 até {len(unidades)})')
+        while True:
+            inp = input()
+            try:
+                numero_de_unidades_para_scrape = int(inp)
+            except ValueError:
+                print('\033[0;31mValor passado não é um inteiro valido.\033[0;37m')
+                continue
+
+            if numero_de_unidades_para_scrape <= 0:
+                qtd_unidades = len(unidades)
+                break
+            elif numero_de_unidades_para_scrape > len(unidades):
+                print('\033[0;31mNão é possivel fazer o scrape de mais unidades que as disponiveis no website.\033[0;37m')
+            else:
+                qtd_unidades = numero_de_unidades_para_scrape
+                break
+
+        for seletor, unidade in zip(range(2, qtd_unidades + 2), unidades):
             seletor_de_unidades = navegador.find_element(By.ID, "comboUnidade")
             seletor_de_unidades.click()
             seletor_de_unidades.find_element(By.CSS_SELECTOR, f'#comboUnidade :nth-child({seletor})').click()
