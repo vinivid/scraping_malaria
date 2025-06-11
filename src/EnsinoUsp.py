@@ -6,7 +6,9 @@ from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.common.exceptions import ElementClickInterceptedException
 from selenium.common.exceptions import NoSuchElementException
-import time
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from webdriver_manager.chrome import ChromeDriverManager
 
 from .UnidadeUsp import UnidadeUsp
 from .CursoUsp import CursoUsp
@@ -24,6 +26,9 @@ class EnsinoUsp:
     cursos      : list[CursoUsp]
     disciplinas : list[DisciplinaUsp]
 
+    ABA_BUSCAR  = 'step1-tab'
+    ABA_GRADE   = 'step4-tab' 
+
     def _get_unidades(self, nav : Chrome) -> list[Tag]:
         # Demora um pouco para a lista das unidades aparecerem então é necessario esperar
         WebDriverWait(nav, 60).until(ec.presence_of_element_located((By.CSS_SELECTOR, "#comboUnidade :nth-child(2)")))
@@ -39,10 +44,10 @@ class EnsinoUsp:
         return [child.get_text() for child in cursos_soup.find(id='comboCurso') 
                     if (type(child) is Tag) and child.get('value') != '']       
 
-    def _click_aba_buscar(self, nav : Chrome) -> None:
+    def _click_aba(self, nav : Chrome, aba : str) -> None:
         while True:
             try:
-                nav.find_element(By.ID, 'step1-tab').click()
+                nav.find_element(By.ID, aba).click()
                 break
             except ElementClickInterceptedException:
                 continue
@@ -65,7 +70,54 @@ class EnsinoUsp:
     def _get_curso_info(self, nav : Chrome) -> Tag:    
         self._esperar_carregar(nav)
         return BeautifulSoup(nav.page_source, features="html.parser").find(id='step2')
+    
+    def _get_disciplinas(self, nav : Chrome) -> tuple[Tag, list[tuple[str, Tag]]]:
+        self._esperar_carregar(nav)
+        self._click_aba(nav, self.ABA_GRADE)
+        self._esperar_carregar(nav)
 
+        tudo_soup = BeautifulSoup(nav.page_source, "html.parser")
+        disciplina_tags : list[Tag] = tudo_soup.find_all(class_='disciplina')
+        disciplina_e_info : list[tuple[str, Tag]] = []
+
+        for dis in disciplina_tags:
+            nav.find_element(By.XPATH, f"//a[@data-coddis='{dis.text}']").click()
+            self._esperar_carregar(nav)
+
+            classes_do_bloco = set([
+                "ui-dialog",
+                "ui-widget",
+                "ui-widget-content",
+                "ui-corner-all",
+                "ui-draggable",
+                "ui-resizable"
+            ])
+
+            def classes_iguais(tag):
+                return (
+                    tag.name == 'div' and
+                    tag.has_attr('class') and
+                    set(tag['class']) == classes_do_bloco
+                )
+
+            disciplina_soup : Tag = BeautifulSoup(nav.page_source, "html.parser").find(classes_iguais)
+            disciplina_e_info.append((dis.text, disciplina_soup))
+            self._esperar_carregar(nav)
+            nav.find_element(By.CLASS_NAME, 'ui-icon.ui-icon-closethick').click()
+
+        grade_curricular_soup : Tag = BeautifulSoup(nav.page_source, "html.parser").find(id='step4')
+
+        return (grade_curricular_soup, disciplina_e_info)
+
+
+    def _ini_chrome(self) -> Chrome:
+        options = Options()
+        options.add_argument("--log-level=3")
+        options.add_experimental_option('excludeSwitches', ['enable-logging'])
+
+        ChromeDriverManager().install()
+
+        return Chrome(service=Service(ChromeDriverManager().install()),options=options)
     # A função de init é suposta dar scrape em todos os conteudos, inicializando as classes
     # a partir do conteudo scrapado
     def __init__(self):
@@ -73,7 +125,7 @@ class EnsinoUsp:
         self.cursos      = []
         self.disciplinas = []
 
-        navegador : Chrome = Chrome()
+        navegador : Chrome = self._ini_chrome()
         CURSOS_URL : str = 'https://uspdigital.usp.br/jupiterweb/jupCarreira.jsp?codmnu=8275'
         navegador.get(CURSOS_URL)
 
@@ -99,6 +151,8 @@ class EnsinoUsp:
                     info_curso_soup = self._get_curso_info(navegador)
                     self.cursos.append(CursoUsp(curso, info_curso_soup))
 
-                    self._click_aba_buscar(navegador)
+                    pagina_grade_soup, disciplina_e_info = self._get_disciplinas(navegador)
+
+                    self._click_aba(navegador, self.ABA_BUSCAR)
                     
         navegador.close()
