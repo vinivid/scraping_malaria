@@ -98,7 +98,7 @@ class EnsinoUsp:
         """
         Espera o popup de carregar desaparecer.
 
-        :param nav: O navegador para scraping dos dados. Asume
+        :param nav: O navegador para scraping dos dados. Pressupõe
             que o navegador acabou de fazer algo que faz com que
             o popup apareça.
         :type nav: Chrome
@@ -114,7 +114,7 @@ class EnsinoUsp:
         Checa pelo popup de erro (informações não encontradas).
         Se ele for encontrado, fecha ele.
 
-        :param nav: O navegador para scraping dos dados. Asume
+        :param nav: O navegador para scraping dos dados. Pressupõe
             que o navegador acabou de fazer algo que possivelmente
             faça que o popup apareça.
         :type nav: Chrome
@@ -134,7 +134,7 @@ class EnsinoUsp:
         """
         Pega a aba das informações do curso.
 
-        :param nav: O navegador para scraping dos dados. Asume
+        :param nav: O navegador para scraping dos dados. Pressupõe
             que o navegador clicou no botão de enviar após selecionar
             um curso.
         :type nav: Chrome
@@ -144,20 +144,25 @@ class EnsinoUsp:
         self._esperar_carregar(nav)
         return BeautifulSoup(nav.page_source, features="html.parser").find(id='step2')
     
-    def _get_disciplinas(self, nav : Chrome) -> tuple[Tag, list[tuple[str, Tag]]]:
+    def _get_disciplinas(self, nav : Chrome, dis_ja : set[str]) -> tuple[Tag, list[str], list[tuple[str, Tag]]]:
         """
         Pega a aba da grade curricular do curso e as informações
-        de cada disciplina na grade deste curso
+        de cada disciplina na grade deste curso caso as informações
+        ainda não tenham sido coletadas.
 
-        :param nav: O navegador para scraping dos dados. Asume
+        :param nav: O navegador para scraping dos dados. Pressupõe
             que o navegador clicou no botão de enviar após selecionar
             um curso.
         :type nav: Chrome
+        :param dis_ja: O set das disciplinas que ja foram processadas
+            para evitar que a mesma aba seja aberta duas vezes.
+        :type nav: set[str]
         :return: A função retorna a aba da grade para scraping na primeira
-            posição da tupla. Na segunda posição da tupla retorna uma lista
-            de tuplas contendo em seu primeiro elemento o código de uma
-            disciplina do curso como uma string, e no segundo elemento 
-            o popup das informações da disciplina para scraping.
+            posição da tupla. Na segunda retorna uma lista com o código de
+            cada disciplina da grade do curso. Na terceira posição da tupla 
+            retorna uma lista de tuplas contendo em seu primeiro elemento o 
+            código de uma disciplina do curso como uma string, e no segundo 
+            elemento o popup das informações da disciplina para scraping.
         :rtype: tuple[Tag, list[tuple[str, Tag]]]
         """     
         self._esperar_carregar(nav)
@@ -166,37 +171,42 @@ class EnsinoUsp:
 
         tudo_soup = BeautifulSoup(nav.page_source, "html.parser")
         disciplina_tags : list[Tag] = tudo_soup.find_all(class_='disciplina')
+        disciplinas_do_curso : list[str] = []
         disciplina_e_info : list[tuple[str, Tag]] = []
 
         for dis in disciplina_tags:
-            nav.find_element(By.XPATH, f"//a[@data-coddis='{dis.text}']").click()
-            self._esperar_carregar(nav)
+            if dis.text in dis_ja:
+                disciplinas_do_curso.append(dis.tex)
+            else:
+                nav.find_element(By.XPATH, f"//a[@data-coddis='{dis.text}']").click()
+                self._esperar_carregar(nav)
 
-            classes_do_bloco = set([
-                "ui-dialog",
-                "ui-widget",
-                "ui-widget-content",
-                "ui-corner-all",
-                "ui-draggable",
-                "ui-resizable"
-            ])
+                classes_do_bloco = set([
+                    "ui-dialog",
+                    "ui-widget",
+                    "ui-widget-content",
+                    "ui-corner-all",
+                    "ui-draggable",
+                    "ui-resizable"
+                ])
 
-            def classes_iguais(tag : Tag):
-                return (
-                    tag.name == 'div' and
-                    tag.has_attr('class') and
-                    set(tag['class']) == classes_do_bloco
-                )
+                def classes_iguais(tag : Tag):
+                    return (
+                        tag.name == 'div' and
+                        tag.has_attr('class') and
+                        set(tag['class']) == classes_do_bloco
+                    )
 
-            # Procurar apenas pela classes usando o class_ não da certo, então utiliza-se essa forma.
-            disciplina_soup : Tag = BeautifulSoup(nav.page_source, "html.parser").find(classes_iguais)
-            disciplina_e_info.append((dis.text, disciplina_soup))
-            self._esperar_carregar(nav)
-            nav.find_element(By.CLASS_NAME, 'ui-icon.ui-icon-closethick').click()
+                # Procurar apenas pela classes usando o class_ não da certo, então utiliza-se essa forma.
+                disciplina_soup : Tag = BeautifulSoup(nav.page_source, "html.parser").find(classes_iguais)
+                disciplinas_do_curso.append(dis.tex)
+                disciplina_e_info.append((dis.text, disciplina_soup))
+                self._esperar_carregar(nav)
+                nav.find_element(By.CLASS_NAME, 'ui-icon.ui-icon-closethick').click()
 
         grade_curricular_soup : Tag = BeautifulSoup(nav.page_source, "html.parser").find(id='step4')
 
-        return (grade_curricular_soup, disciplina_e_info)
+        return (grade_curricular_soup, disciplinas_do_curso, disciplina_e_info)
 
 
     def _ini_chrome(self) -> Chrome:
@@ -245,6 +255,9 @@ class EnsinoUsp:
             else:
                 qtd_unidades = numero_de_unidades_para_scrape
                 break
+        
+        # Guarda as disciplinas que foram acessadas para não ter que acessar elas novamente
+        disciplinas_processadas : set[str] = set()
 
         for seletor, unidade in zip(range(2, qtd_unidades + 2), unidades):
             seletor_de_unidades = navegador.find_element(By.ID, "comboUnidade")
@@ -266,7 +279,9 @@ class EnsinoUsp:
                     info_curso_soup = self._get_curso_info(navegador)
                     self.cursos.append(CursoUsp(curso, info_curso_soup))
 
-                    pagina_grade_soup, disciplina_e_info = self._get_disciplinas(navegador)
+                    pagina_grade_soup, disciplinas_do_curso, disciplinas_para_processo = self._get_disciplinas(navegador, disciplinas_processadas)
+                    for dis, dis_soup in disciplinas_para_processo:
+                        disciplinas_processadas.add(dis)
 
                     self._click_aba(navegador, self.ABA_BUSCAR)
                     
