@@ -47,30 +47,24 @@ class EnsinoUsp:
             except ElementClickInterceptedException:
                 continue
 
-    def _checa_erro_popup(self, nav : Chrome) -> bool:
-        # Por algum motivo é necessario esperar esse tempo para funcionar
-        time.sleep(0.1)
-    
+    def _esperar_carregar(self, nav : Chrome) -> None:
         WebDriverWait(nav, 10).until(
             lambda nav: nav.execute_script("return jQuery.active == 0")
         )
-        WebDriverWait(nav, 10).until(ec.invisibility_of_element_located((By.CLASS_NAME, 'blockUI blockOverlay')))  
-        
+        WebDriverWait(nav, 10).until(ec.invisibility_of_element_located((By.CLASS_NAME, 'blockUI.blockOverlay')))  
+
+    def _checa_erro_popup(self, nav : Chrome) -> bool:    
+        self._esperar_carregar(nav)
         try:
             nav.find_element(By.ID, 'err')
-            return False
-        except NoSuchElementException:
+            nav.find_elements(By.CLASS_NAME, 'ui-button-text')[2].click()
             return True
+        except NoSuchElementException:
+            return False
 
-    def _get_curso_info(self, nav : Chrome) -> Tag:
-        time.sleep(0.1)
-    
-        WebDriverWait(nav, 10).until(
-            lambda nav: nav.execute_script("return jQuery.active == 0")
-        )
-        WebDriverWait(nav, 10).until(ec.invisibility_of_element_located((By.CLASS_NAME, 'blockUI blockOverlay')))
-
-        return BeautifulSoup(nav.page_source, features="html.parser")
+    def _get_curso_info(self, nav : Chrome) -> Tag:    
+        self._esperar_carregar(nav)
+        return BeautifulSoup(nav.page_source, features="html.parser").find(id='step2')
 
     # A função de init é suposta dar scrape em todos os conteudos, inicializando as classes
     # a partir do conteudo scrapado
@@ -83,20 +77,17 @@ class EnsinoUsp:
         CURSOS_URL : str = 'https://uspdigital.usp.br/jupiterweb/jupCarreira.jsp?codmnu=8275'
         navegador.get(CURSOS_URL)
 
-        unidades = self._get_unidades(navegador)
+        unidades = self._get_unidades(navegador)        
 
-        # Esse loop percorre cada curso de uma unidade, criando as classes a partir das informações
-        # coletadas
-        for seletor_unidade, unidade in zip(range(2, len(unidades) + 2), unidades):
+        for seletor, unidade in zip(range(2, len(unidades) + 2), unidades):
             seletor_de_unidades = navegador.find_element(By.ID, "comboUnidade")
             seletor_de_unidades.click()
-            seletor_de_unidades.find_element(By.CSS_SELECTOR, f'#comboUnidade :nth-child({seletor_unidade})').click()
+            seletor_de_unidades.find_element(By.CSS_SELECTOR, f'#comboUnidade :nth-child({seletor})').click()
 
             cursos = self._get_cursos(navegador)
 
             self.unidades.append(UnidadeUsp(unidade, set(cursos)))
-            
-            # Esse loop acessa cada curso de uma unidade e cria as classes a paritr dessas informações
+
             for seletor_curso, curso in zip(range(2, len(cursos) + 2), cursos):
                 seletor_de_cursos = navegador.find_element(By.ID, "comboCurso")
                 botao_enviar = navegador.find_element(By.ID, "enviar")
@@ -106,7 +97,7 @@ class EnsinoUsp:
 
                 if not self._checa_erro_popup(navegador):
                     info_curso_soup = self._get_curso_info(navegador)
-                    self.cursos.append(CursoUsp(curso, info_curso_soup.find(id='step2')))
+                    self.cursos.append(CursoUsp(curso, info_curso_soup))
 
                     self._click_aba_buscar(navegador)
                     
