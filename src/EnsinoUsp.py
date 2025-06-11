@@ -10,6 +10,7 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
 import time
+import sys
 
 from .UnidadeUsp import UnidadeUsp
 from .CursoUsp import CursoUsp
@@ -238,23 +239,22 @@ class EnsinoUsp:
         unidades = self._get_unidades(navegador)        
 
         qtd_unidades = 0
-        print(f'Quantidade de unidades a serem scrapdas (<=0 para todas as unidades) (de 1 até {len(unidades)})')
-        while True:
-            inp = input()
-            try:
-                numero_de_unidades_para_scrape = int(inp)
-            except ValueError:
-                print('\033[0;31mValor passado não é um inteiro valido.\033[0;37m')
-                continue
+        try:
+            numero_de_unidades_para_scrape = int(sys.argv[1])
+        except ValueError:
+            numero_de_unidades_para_scrape = len(unidades)
+            print('\033[0;31mValor passado não é um inteiro valido. Portanto foi escolhido o número máximo de unidades\033[0;37m\n')
+        except IndexError:
+           numero_de_unidades_para_scrape = len(unidades)
 
-            if numero_de_unidades_para_scrape <= 0:
-                qtd_unidades = len(unidades)
-                break
-            elif numero_de_unidades_para_scrape > len(unidades):
-                print('\033[0;31mNão é possivel fazer o scrape de mais unidades que as disponiveis no website.\033[0;37m')
-            else:
-                qtd_unidades = numero_de_unidades_para_scrape
-                break
+        if numero_de_unidades_para_scrape < 0:
+            qtd_unidades = len(unidades)
+            print('\033[0;31mNão é possivel fazer o scrape de um número negativo de unidades. Portanto foi escolhido o número máximo de unidades.\033[0;37m\n')
+        elif numero_de_unidades_para_scrape > len(unidades):
+            qtd_unidades = len(unidades)
+            print('\033[0;31mNão é possivel fazer o scrape de mais unidades que as disponiveis no website. Portanto foi escolhido o número máximo de unidades.\033[0;37m\n')
+        else:
+            qtd_unidades = numero_de_unidades_para_scrape
         
         # Guarda as disciplinas que foram acessadas para não ter que acessar elas novamente
         disciplinas_processadas : set[str] = set()
