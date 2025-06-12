@@ -16,24 +16,66 @@ class DisciplinaUsp:
         pass
 
     def get_codigo(self) -> str:
+        """
+        Pega a string do código da disciplina.
+
+        :return: Código da disciplina.
+        :rtype: str
+        """
         return self.codigo
 
     def get_nome(self) -> str:
+        """
+        Pega a string do nome da disciplina.
+
+        :return: Nome da disciplina.
+        :rtype: str
+        """
         return self.nome
 
     def get_creditos_aula(self) -> int:
+        """
+        Pega o inteiro de créditos aula da disciplina.
+
+        :return: Créditos aula da disciplina.
+        :rtype: int
+        """
         return self.cred_aula
 
     def get_creditos_trabalho(self) -> int:
+        """
+        Pega o inteiro de créditos trabalho da disciplina.
+
+        :return: Créditos trabalho da disciplina.
+        :rtype: int
+        """
         return self.cred_trab
 
     def get_carga_horaria(self) -> int:
+        """
+        Pega o inteiro de carga horária da disciplina.
+
+        :return: Carga Horária da disciplina.
+        :rtype: int
+        """
         return self.carg_h
 
     def get_carga_horaria_estagio(self) -> int:
+        """
+        Pega o inteiro de carga horária de estágio da disciplina.
+
+        :return: Carga Horária de Estágio da disciplina.
+        :rtype: int
+        """
         return self.carg_h_est
 
     def get_carga_horaria_praticas_componentes_curriculares(self):
+        """
+        Pega o inteiro de carga horária de práticas como componentes curriculares disciplina.
+
+        :return: Carga Horária de Práticas Como Componentes Curriculares da disciplina.
+        :rtype: int
+        """
         return self.carg_h_pcc
     
     #ainda n entendi oq eh isso na real
