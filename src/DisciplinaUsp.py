@@ -1,17 +1,53 @@
+from bs4 import BeautifulSoup
+from bs4.element import Tag
+
 class DisciplinaUsp:
 
     codigo : str
     nome : str
-    cred_aula : int
-    cred_trab : int
-    CH : int
-    CE : int
-    CP : int
-    ATPA : int
+    cred_aula : str
+    cred_trab : str
+    CH : str
+    CE : str
+    CP : str
+    ATPA : str
+    cursos : list[str]
 
-    #Perguntar dps pro jiboia! n entendi como eu vou receber os parametros, como vai ser a chamada  da func na """"main""""
-    def __init__(self):
-        pass
+    def __init__(self, tag : Tag, curso : str):
+        self.codigo = tag.text
+        if not self.codigo:
+            self.codigo = "N/A"
+        tag = tag.parent.parent
+        self.nome = tag.contents[1].text
+        if not self.nome:
+            self.nome = "N/A"
+        self.cred_aula = tag.contents[2].text
+        if not self.cred_aula:
+            self.cred_aula = "N/A"
+        self.cred_trab = tag.contents[3].text
+        if not self.cred_trab:
+            self.cred_trab = "N/A"
+        self.CH = tag.contents[4].text
+        if not self.CH:
+            self.CH = "N/A"
+        self.CE = tag.contents[5].text
+        if not self.CE:
+            self.CE = "N/A"
+        self.CP = tag.contents[6].text
+        if not self.CP:
+            self.CP = "N/A"
+        self.ATPA = tag.contents[7].text
+        if not self.ATPA:
+            self.ATPA = "N/A"
+        self.cursos = []
+        self.cursos.append(curso)
+        
+
+    def add_curso(self, curso : str) -> None:
+        """
+        Adiciona um curso na disciplina, indicando que ela faz parte desse curso
+        """
+        self.cursos.append(curso)
 
     def get_codigo(self) -> str:
         """
@@ -31,7 +67,7 @@ class DisciplinaUsp:
         """
         return self.nome
 
-    def get_creditos_aula(self) -> int:
+    def get_creditos_aula(self) -> str:
         """
         Pega o inteiro de créditos aula da disciplina.
 
@@ -40,7 +76,7 @@ class DisciplinaUsp:
         """
         return self.cred_aula
 
-    def get_creditos_trabalho(self) -> int:
+    def get_creditos_trabalho(self) -> str:
         """
         Pega o inteiro de créditos trabalho da disciplina.
 
@@ -49,7 +85,7 @@ class DisciplinaUsp:
         """
         return self.cred_trab
 
-    def get_carga_horaria(self) -> int:
+    def get_carga_horaria(self) -> str:
         """
         Pega o inteiro de carga horária da disciplina.
 
@@ -58,7 +94,7 @@ class DisciplinaUsp:
         """
         return self.CH
 
-    def get_carga_horaria_estagio(self) -> int:
+    def get_carga_horaria_estagio(self) -> str:
         """
         Pega o inteiro de carga horária de estágio da disciplina.
 
@@ -67,7 +103,7 @@ class DisciplinaUsp:
         """
         return self.CE
 
-    def get_carga_horaria_praticas_componentes_curriculares(self) -> int:
+    def get_carga_horaria_praticas_componentes_curriculares(self) -> str:
         """
         Pega o inteiro de carga horária de práticas como componentes curriculares da disciplina.
 
@@ -76,7 +112,7 @@ class DisciplinaUsp:
         """
         return self.CP
     
-    def get_atividades_teorico_praticas_aprofundamento(self) -> int:
+    def get_atividades_teorico_praticas_aprofundamento(self) -> str:
         """
         Pega o inteiro de ativides teórico práticas de aprofundamento da disciplina.
 
@@ -93,5 +129,8 @@ class DisciplinaUsp:
         disciplina_str += f'\nCarga Horária: {self.CH}'
         disciplina_str += f'\nCarga Horária Estágio: {self.CE}'
         disciplina_str += f'\nCarga Horária PCC: {self.CP}'
-        disciplina_str += f'\nAtividades TPA: {self.ATPA}\n'
+        disciplina_str += f'\nAtividades TPA: {self.ATPA}'
+        disciplina_str += "\nCursos do qual faz parte:\n"
+        for curso in self.cursos:
+            disciplina_str += f'{curso}\n'
         return disciplina_str

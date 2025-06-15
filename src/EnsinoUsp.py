@@ -1,5 +1,6 @@
 from bs4 import BeautifulSoup
 from bs4.element import Tag
+from selenium.webdriver import Firefox
 from selenium.webdriver import Chrome
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.wait import WebDriverWait
@@ -26,7 +27,7 @@ class EnsinoUsp:
 
     unidades    : list[UnidadeUsp]
     cursos      : list[CursoUsp]
-    disciplinas : list[DisciplinaUsp]
+    disciplinas : dict[str, DisciplinaUsp]
 
     ABA_BUSCAR  = 'step1-tab'
     ABA_GRADE   = 'step4-tab' 
@@ -168,7 +169,7 @@ class EnsinoUsp:
         self._esperar_carregar(nav)
 
         tudo_soup = BeautifulSoup(nav.page_source, "html.parser")
-        disciplinas_do_curso : list[str] = [x.text for x  in tudo_soup.find_all(class_='disciplina')]
+        disciplinas_do_curso : list[Tag] = tudo_soup.find_all(class_='disciplina')
 
         grade_curricular_soup : Tag = BeautifulSoup(nav.page_source, "html.parser").find(id='step4')
 
@@ -195,9 +196,9 @@ class EnsinoUsp:
     def __init__(self):
         self.unidades    = []
         self.cursos      = []
-        self.disciplinas = []
+        self.disciplinas = {}
 
-        navegador : Chrome = self._ini_chrome()
+        navegador : Chrome = Firefox()
         CURSOS_URL : str = 'https://uspdigital.usp.br/jupiterweb/jupCarreira.jsp?codmnu=8275'
         navegador.get(CURSOS_URL)
 
@@ -242,7 +243,19 @@ class EnsinoUsp:
                     self.cursos.append(CursoUsp(curso, info_curso_soup))
 
                     pagina_grade_soup, disciplinas_do_curso = self._get_disciplinas(navegador)
+                    for disciplina in disciplinas_do_curso:
+                        if disciplina.text in self.disciplinas:
+                            self.disciplinas[disciplina.text].add_curso(curso)
+                            continue
+
+                        nova_disciplina = DisciplinaUsp(disciplina, curso)
+                        self.disciplinas.update({nova_disciplina.get_codigo() : nova_disciplina})
 
                     self._click_aba(navegador, self.ABA_BUSCAR)
                     
+        with open("saida.out", "w", encoding="utf-8") as f:
+            for disciplina in self.disciplinas.values():
+                f.write(str(disciplina))
+                f.write("\n" + "-"*60 + "\n")
+
         navegador.close()
