@@ -252,10 +252,5 @@ class EnsinoUsp:
                         self.disciplinas.update({nova_disciplina.get_codigo() : nova_disciplina})
 
                     self._click_aba(navegador, self.ABA_BUSCAR)
-                    
-        with open("saida.out", "w", encoding="utf-8") as f:
-            for disciplina in self.disciplinas.values():
-                f.write(str(disciplina))
-                f.write("\n" + "-"*60 + "\n")
 
         navegador.close()
