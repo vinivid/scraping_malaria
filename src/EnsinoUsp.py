@@ -144,7 +144,7 @@ class EnsinoUsp:
         :rtype: Tag
         """      
         self._esperar_carregar(nav)
-        return BeautifulSoup(nav.page_source, features="html.parser").find(id='step2')
+        return BeautifulSoup(nav.page_source, features="html.parser").find(id='step4').find('table').find('tr').find('td')
     
     def _get_disciplinas(self, nav : Chrome) -> tuple[Tag, list[str]]:
         """
@@ -231,26 +231,34 @@ class EnsinoUsp:
 
             self.unidades.append(UnidadeUsp(unidade, set(cursos)))
 
-            for seletor_curso, curso in zip(range(2, len(cursos) + 2), cursos):
+            for (seletor_curso, curso) in zip(range(2, len(cursos) + 2), cursos):
                 seletor_de_cursos = navegador.find_element(By.ID, "comboCurso")
                 botao_enviar = navegador.find_element(By.ID, "enviar")
                 seletor_de_cursos.click()
                 seletor_de_cursos.find_element(By.CSS_SELECTOR, f'#comboCurso :nth-child({seletor_curso})').click()
                 botao_enviar.click()
 
+                #A partir daqui está na aba de disciplinas
                 if not self._checa_erro_popup(navegador):
-                    info_curso_soup = self._get_curso_info(navegador)
-                    self.cursos.append(CursoUsp(curso, info_curso_soup))
+                    curso_conteudo = self._get_curso_info(navegador) #conteudo da pagina toda
+                    novo_curso = CursoUsp(curso, curso_conteudo)     #cria um curso com o que está na pagina
 
-                    pagina_grade_soup, disciplinas_do_curso = self._get_disciplinas(navegador)
+                    (tabela_disciplinas_conteudo, disciplinas_do_curso) = self._get_disciplinas(navegador)
+                    
                     for disciplina in disciplinas_do_curso:
-                        if disciplina.text in self.disciplinas:
-                            self.disciplinas[disciplina.text].add_curso(curso)
-                            continue
+                        #Aquire o conteúdo se é brigatória, livre ou eletiva
+                        modalidade = disciplina.parent.parent.parent.find("tr").find("td").text
 
                         nova_disciplina = DisciplinaUsp(disciplina, curso)
-                        self.disciplinas.update({nova_disciplina.get_codigo() : nova_disciplina})
+                        novo_curso.set_disciplina(modalidade, nova_disciplina) #relaciona a disciplina nova no banco do curso
+                        
+                        if disciplina.text in self.disciplinas: 
+                            self.disciplinas[disciplina.text].add_curso(curso)
+                            continue
+                        
+                        self.disciplinas.update({nova_disciplina.get_codigo() : nova_disciplina}) #adiciona a lista de disciplinas gerais
 
+                    self.cursos.append(novo_curso)
                     self._click_aba(navegador, self.ABA_BUSCAR)
 
         navegador.close()
