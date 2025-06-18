@@ -1,5 +1,4 @@
 from bs4.element import Tag
-from DisciplinaUsp import DisciplinaUsp
 
 class CursoUsp:
 
@@ -8,42 +7,46 @@ class CursoUsp:
     dur_idl : str
     dur_min : str
     dur_max : str
-    LDO  : dict[str, DisciplinaUsp] #Lista de Disciplinas Obrigatórias
-    LDOL : dict[str, DisciplinaUsp] #Lista de Disciplinas Optativas Livres
-    LDOE : dict[str, DisciplinaUsp] #Lista de Disciplinas Optativas Eletivas
+    disciplinas_obrigatorias  : set[str]
+    disciplinas_opt_livre     : set[str] 
+    disciplinas_opt_eletivas  : set[str]
 
-    def __init__(self, curso : str, conteudos : Tag) -> None:
-        self.unidade = conteudos.find("span", class_="unidade").text
+    def __init__(self, curso : str, unidade : str, conteudos : Tag) -> None:
+        self.unidade = unidade
         self.nome = curso
 
-        self.dur_idl = conteudos.find("span", class_= "duridlhab").text
-        if not self.dur_idl:
+        if conteudos is None:
             self.dur_idl = "N/A"
-            
-        self.dur_min = conteudos.find("span", class_= "durminhab").text
-        if not self.dur_min:
             self.dur_min = "N/A"
-            
-        self.dur_max = conteudos.find("span", class_= "durmaxhab").text
-        if not self.dur_max:
             self.dur_max = "N/A"
 
-        # Inicializa os dicionários
-        LDO = {}
-        LDOL = {}
-        LDOE = {}
+        else:
+            self.dur_idl = conteudos.find("span", class_= "duridlhab").text
+            if not self.dur_idl:
+                self.dur_idl = "N/A"
+                
+            self.dur_min = conteudos.find("span", class_= "durminhab").text
+            if not self.dur_min:
+                self.dur_min = "N/A"
+                
+            self.dur_max = conteudos.find("span", class_= "durmaxhab").text
+            if not self.dur_max:
+                self.dur_max = "N/A"
+
+        self.disciplinas_obrigatorias  = set()
+        self.disciplinas_opt_livre     = set()
+        self.disciplinas_opt_eletivas  = set()
     
-    def set_disciplina(self, modalidade: str, disciplina: DisciplinaUsp) -> None:
-        chave = disciplina.get_codigo()
+    def add_disciplina(self, modalidade: str, disciplina : str) -> None:
+        tipo_de_modalidade = modalidade.split(' ')[-1].strip().lower()
+        if "obrigatórias" == tipo_de_modalidade:
+            self.disciplinas_obrigatorias.add(disciplina)
 
-        if "obrigatória" in modalidade.lower():
-            self.LDO[chave] = disciplina
-
-        elif "livre" in modalidade.lower():
-            self.LDOL[chave] = disciplina
+        elif "livres" == tipo_de_modalidade:
+            self.disciplinas_opt_livre.add(disciplina)
             
-        elif "eletiva" in modalidade.lower():
-            self.LDOE[chave] = disciplina
+        elif "eletivas" == tipo_de_modalidade:
+            self.disciplinas_opt_eletivas.add(disciplina)
 
     def get_curso(self) -> str:
         """
@@ -91,7 +94,6 @@ class CursoUsp:
         """
         return self.dur_max
     
-
     def __str__(self) -> str:
         curso_str = f'\nUnidade: {self.unidade}'
         curso_str += f'\nCurso: {self.nome}'
@@ -100,17 +102,24 @@ class CursoUsp:
         curso_str += f'\nDuração Máxima: {self.dur_max}'
 
         curso_str += "\n\nDisciplinas Obrigatórias:\n"
-        for disc in self.LDO.values():
-            curso_str += f'{str(disc)}\n'
+        if len(self.disciplinas_obrigatorias) == 0:
+            curso_str += "\tN/A\n"
+        else:
+            for disc in self.disciplinas_obrigatorias:
+                curso_str += f'\t{disc}\n'
 
         curso_str += "\nDisciplinas Optativas Livres:\n"
-        for disc in self.LDOL.values():
-            curso_str += f'{str(disc)}\n'
+        if len(self.disciplinas_opt_livre) == 0:
+            curso_str += '\tN/A\n'
+        else:
+            for disc in self.disciplinas_opt_livre:
+                curso_str += f'\t{disc}\n'
 
         curso_str += "\nDisciplinas Optativas Eletivas:\n"
-        for disc in self.LDOE.values():
-            curso_str += f'{str(disc)}\n'
+        if len(self.disciplinas_opt_eletivas) == 0:
+            curso_str += '\tN/A\n'
+        else:
+            for disc in self.disciplinas_opt_eletivas:
+                curso_str += f'\t{disc}\n'
+            
         return curso_str
-
-    #Que tal um método para listar todas as disciplinas de um curso?
-    #Outros métodos que talvez sejam necessarios
