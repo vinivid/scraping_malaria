@@ -11,6 +11,9 @@ from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
 import time
 import sys
+import timeit
+import re
+from difflib import get_close_matches
 
 from .UnidadeUsp import UnidadeUsp
 from .CursoUsp import CursoUsp
@@ -25,7 +28,7 @@ class EnsinoUsp:
     """
 
     unidades    : list[UnidadeUsp]
-    cursos      : list[CursoUsp]
+    cursos      : dict[str, CursoUsp]
     disciplinas : dict[str, DisciplinaUsp]
 
     ABA_BUSCAR  = 'step1-tab'
@@ -187,11 +190,41 @@ class EnsinoUsp:
         ChromeDriverManager().install()
 
         return Chrome(service=Service(ChromeDriverManager().install()),options=options)
+    
+    def _processar_quantidade_de_unidades(self, quantidade_de_unidades : int) -> int:
+        """
+        Processa o primeiro argumento do programa, que é a qunatidade
+        de unidades para serem scrapadas.
+
+        :param quantidade_de_unidades: É a quantiadade de que estão presentes
+            no seletor de unidades, utilizado como valor padrão para entradas
+            erroneas ou inexistentes.
+        :type quantidade_de_unidades: int
+        :return: Quantiadade de unidades para scrape.
+        :rtype: int
+        """
+        try:
+            numero_de_unidades_para_scrape = int(sys.argv[1])
+        except ValueError:
+            print('\033[0;31mValor passado não é um inteiro valido. Portanto foi escolhido o número máximo de unidades\033[0;37m\n')
+            return quantidade_de_unidades
+        except IndexError:
+            return quantidade_de_unidades
+
+        if numero_de_unidades_para_scrape < 0:
+            print('\033[0;31mNão é possivel fazer o scrape de um número negativo de unidades. Portanto foi escolhido o número máximo de unidades.\033[0;37m\n')
+            return quantidade_de_unidades
+        elif numero_de_unidades_para_scrape > quantidade_de_unidades:
+            print('\033[0;31mNão é possivel fazer o scrape de mais unidades que as disponiveis no website. Portanto foi escolhido o número máximo de unidades.\033[0;37m\n')
+            return quantidade_de_unidades
+        else:
+            return numero_de_unidades_para_scrape
+
     # A função de init é suposta dar scrape em todos os conteudos, inicializando as classes
     # a partir do conteudo scrapado
     def __init__(self):
         self.unidades    = []
-        self.cursos      = []
+        self.cursos      = {}
         self.disciplinas = {}
 
         navegador : Chrome = self._ini_chrome()
@@ -200,23 +233,13 @@ class EnsinoUsp:
 
         unidades = self._get_unidades(navegador)        
 
-        qtd_unidades = 0
-        try:
-            numero_de_unidades_para_scrape = int(sys.argv[1])
-        except ValueError:
-            numero_de_unidades_para_scrape = len(unidades)
-            print('\033[0;31mValor passado não é um inteiro valido. Portanto foi escolhido o número máximo de unidades\033[0;37m\n')
-        except IndexError:
-           numero_de_unidades_para_scrape = len(unidades)
-
-        if numero_de_unidades_para_scrape < 0:
-            qtd_unidades = len(unidades)
-            print('\033[0;31mNão é possivel fazer o scrape de um número negativo de unidades. Portanto foi escolhido o número máximo de unidades.\033[0;37m\n')
-        elif numero_de_unidades_para_scrape > len(unidades):
-            qtd_unidades = len(unidades)
-            print('\033[0;31mNão é possivel fazer o scrape de mais unidades que as disponiveis no website. Portanto foi escolhido o número máximo de unidades.\033[0;37m\n')
+        qtd_unidades = self._processar_quantidade_de_unidades(len(unidades))
+        if qtd_unidades == 1:
+            print('Fazendo o scrape de 1 unidade da USP')
         else:
-            qtd_unidades = numero_de_unidades_para_scrape
+            print(f'Fazendo o scrape de {qtd_unidades} unidades da USP')
+
+        tempo_do_inicio = timeit.default_timer()
         
         for seletor, unidade in zip(range(2, qtd_unidades + 2), unidades):
             seletor_de_unidades = navegador.find_element(By.ID, "comboUnidade")
@@ -227,7 +250,7 @@ class EnsinoUsp:
 
             self.unidades.append(UnidadeUsp(unidade, set(cursos)))
 
-            for (seletor_curso, curso) in zip(range(2, len(cursos) + 2), cursos):
+            for seletor_curso, curso in zip(range(2, len(cursos) + 2), cursos):
                 seletor_de_cursos = navegador.find_element(By.ID, "comboCurso")
                 botao_enviar = navegador.find_element(By.ID, "enviar")
                 seletor_de_cursos.click()
@@ -252,9 +275,227 @@ class EnsinoUsp:
 
                         novo_curso.add_disciplina(modalidade, disciplina.text)
 
-                    self.cursos.append(novo_curso)
+                    self.cursos.update({curso : novo_curso})
                     self._click_aba(navegador, self.ABA_BUSCAR)
                 else:
                     novo_curso = CursoUsp(curso, unidade, None)     
+                    self.cursos.update({curso : novo_curso})
 
         navegador.close()
+        tempo_do_fim = timeit.default_timer()
+        tempo_em_seg = round(tempo_do_fim - tempo_do_inicio, 2)
+        if tempo_em_seg < 60:
+            if qtd_unidades == 1:
+                print(f'Fim do scrape. 1 unidade scrapada em {tempo_em_seg} segundos\n')
+            else:
+                print(f'Fim do scrape. {qtd_unidades} unidades scrapadas em {tempo_em_seg} segundos\n')
+        else:
+            if qtd_unidades == 1:
+                print(f'Fim do scrape. 1 unidade scrapada em {int(tempo_em_seg // 60)}min {round(tempo_em_seg - (tempo_em_seg // 60) * 60)}s\n')
+            else:
+                print(f'Fim do scrape. {qtd_unidades} unidades scrapadas em {int(tempo_em_seg // 60)}min {round(tempo_em_seg - (tempo_em_seg // 60) * 60)}s\n')
+        
+    def cursos_por_unidade(self):
+        """
+        Para cada unidade scrapada imprime todos os cursos que ela possui.
+        """
+        for unidade in self.unidades:
+            print(unidade)
+    
+    def dados_do_curso(self, nome_do_curso : str) -> bool:
+        """
+        Se o nome do curso passado como argumento estiver presente
+        no dicionario de cursos imprime o seu valor e retorna true.
+        Caso contrario retorna false.
+
+        :param nome_do_curso: Nome do curso que deve ter seus dados imprimidos.
+        :type nome_do_curso: str
+        :return: Retorna true caso o curso seja encotrado, false caso contrario.
+        :rtype: bool
+        """
+        if nome_do_curso in self.cursos:
+            print(self.cursos[nome_do_curso])
+            return True
+        
+        return False
+    
+    def dados_de_todos_os_cursos(self):
+        """
+        Imprime os dados de todos os cursos scrapados.
+        """
+        for curso in self.cursos.values():
+            print(curso)
+    
+    def dados_da_disciplina_codigo(self, codigo_da_disciplina : str) -> bool:
+        """
+        Se o codigo da disciplina passada como argumento estiver presente
+        no dicionario de disciplina imprime o seu valor e retorna true.
+        Caso contrario retorna false.
+
+        :param nome_do_curso: Código da disciplina que deve ter seus dados imprimidos.
+        :type nome_do_curso: str
+        :return: Retorna true caso a disciplina seja encotrado, false caso contrario.
+        :rtype: bool
+        """
+        if codigo_da_disciplina in self.disciplinas:
+            print(self.disciplinas[codigo_da_disciplina])
+            return True
+        
+        return False
+    
+    def dados_da_disciplina_nome(self, nome : str) -> bool:
+        """
+        Se o nome da disciplina passada como argumento estiver presente
+        no dicionario de disciplina imprime o seu valor e retorna true.
+        Caso contrario retorna false.
+
+        :param nome_do_curso: Nome da disciplina que deve ter seus dados imprimidos.
+        :type nome_do_curso: str
+        :return: Retorna true caso a disciplina seja encotrado, false caso contrario.
+        :rtype: bool
+        """
+        disciplina =  [x for x in self.disciplinas.values() if x.get_nome() == nome]
+        if len(disciplina) > 0:
+            print(disciplina[0])
+            return True
+    
+        return False
+    
+    def disciplinas_usadas_em_mais_de_um_curso(self):
+        """
+        Imprime os dados de todas as disciplinas que sao utilizadas em mais de
+        um curso.
+        """
+        disciplinas = [x for x in self.disciplinas.values() if len(x.get_cursos()) > 1]
+        for disciplina in disciplinas:
+            print(disciplina)
+
+    def _validar_entrada(self, funcionalidade : str, argumentos : list[str]) -> tuple[bool, str | tuple[int, str]]:
+        """
+        Checa se, para a funcionalidade dada como argumento,
+        existe uma quantidade valida de argumentos. Se tiver retorna
+        uma tupla/string desses argumentos, caso contrario retorna 
+        uma string de erro para ser imprimida.
+
+        :param funcionalidade: Funcionalidade para validar os argumentos.
+        :type funcionalidade: str
+        :param argumentos: Argumentos para executar a função.
+        :type argumentos: list[str]
+        :return: Retorna uma tupla em que a primeira posiçao é um booleano
+            indicando se é uma entrada valida (True), se for uma entrada valida
+            a segunda posicao sao os argumentos para a funcionalidade. Caso 
+            contrario retorna false e a segunda posição é uma string de erro.
+        """
+        if funcionalidade == 'lc' or funcionalidade == 'ddtc' or funcionalidade == 'ddmc':
+            return (True, '')
+        elif funcionalidade == 'ddc':
+            if len(argumentos) > 1:
+                return (True, ' '.join(argumentos[1:]))
+            else:
+                return (False, "É necessário de um curso para buscar os seus dados. Zero cursos foram passados.")
+        elif funcionalidade == 'ddd':
+            if len(argumentos) > 2:
+                if argumentos[1] == 'cod':
+                    return (True, (0, ' '.join(argumentos[2:])))
+                else:
+                    return (True, (1, ' '.join(argumentos[2:])))
+            else:
+                return (False, "É necessário de um disciplina e seu nome/códgo para buscar os seus dados. Zero disciplinas foram passados.")
+            
+            
+    def _cursos_ou_disciplinas_proximos_ao_nao_encontrado(self, nome_procurado : str, curso_ou_disciplina : int):
+        """
+        Imprime no stdout os cursos ou  que sa próximos ao procurado.
+
+        :param nome_procurado: Nome que foi procurado mais não encontrado.
+        :type nome_procurado: str
+        :param curso_ou_disciplina: 0 se for um curso para verificar a proximidade, e 1 se for uma disciplina.
+        """
+        if curso_ou_disciplina == 0:
+            nomes_proximos = get_close_matches(nome_procurado, [x.get_curso() for x in self.cursos.values()], n=5, cutoff=0.6)
+            if len(nomes_proximos) > 0:
+                print('Curso não encontrado. Talvez você estava procurando por:')
+                for nome in nomes_proximos:
+                    print(nome)
+            else:
+                print('Curso não encontrado.')
+        else:
+            nomes_proximos = get_close_matches(nome_procurado, [x.get_nome() for x in self.disciplinas.values()], n=5, cutoff=0.6)
+            if len(nomes_proximos) > 0:
+                print('Disciplina não encontrada. Talvez você estava procurando por:')
+                for nome in nomes_proximos:
+                    print(nome)
+            else:
+                print('Disciplina não encontrada.')
+
+    def _print_ajuda(self):
+        """
+        Imprime as informaçoes das funcionalidades disponiveis.
+        """
+        print('lc -> (listar cursos) Lista todos os cursos oferecidos pelas unidades scrapadas.')
+        print('\tEssa funcinalidade não precisa de argumentos.\n')
+        print('ddc -> (dados do curso) Imprime os dados de um determinado curso.')
+        print('\tEssa funcinalidade recebe como argumento o nome do curso que deseja saber os dados.')
+        print('\tEx: ddc Marketing (Ciclo Básico) - noturno\n')
+        print('ddtc -> (dados de todos os cursos) Imprieme os dados de todos os cursos.')
+        print('\tEssa funcinalidade não precisa de argumentos.\n')
+        print('ddd -> (dados da disciplina) Imprieme os dados da disciplina que deseja saber os dados.')
+        print('\tEssa funcinalidade recebe como primeiro argumento se a disciplina sera buscada pod código ou por nome, e como segundo o valor da respectiva escolha.')
+        print('\tEx: ddd cod ACH0142\n')
+        print('\tEx: ddd nome Sociedade, Multiculturalismo e Direitos - Cultura Digital')
+        print('ddmc -> (dados das disciplinas em mais de um curso) Imprime os dados das disciplinas que estão em mais de um curso.')
+        print('\tEssa funcinalidade não precisa de argumentos.\n')
+        print('ajuda -> Imprime na tela as funcionalidade disponiveis para serem executadas, em conjunto com instruções de como utiliza-las.\n')
+        print('sair -> Sai do programa.\n')
+
+    def consulta_de_informacoes(self):
+        """
+        Faz com que a stdin possa executar consultas
+        na classe atraves de inputs especificos.
+        """
+        funcionalidades = set(['lc', 'ddc', 'ddtc', 'ddd', 'ddmc'])
+        print('Consulta de informações scrapadas.\nDigite um funcionalidade para executa-la.\nLista de funcionalidades disponiveis:')
+        self._print_ajuda()
+
+        while True:
+            entrada_do_usuario = input()
+            tokens = re.split(r"\s", entrada_do_usuario)
+
+            if len(tokens) > 0:
+                funcionalidade = tokens[0].lower()
+                
+                if funcionalidade == 'sair':
+                    print("Saindo do programa.")
+                    return
+                elif funcionalidade == 'ajuda':
+                    self._print_ajuda()
+                elif funcionalidade in funcionalidades:
+                    entrada_valida, args = self._validar_entrada(funcionalidade, tokens)
+
+                    if entrada_valida:
+                        if funcionalidade == 'lc':
+                            self.cursos_por_unidade()
+                        elif funcionalidade == 'ddc':
+                            print(args)
+                            encontrado = self.dados_do_curso(args)
+                            if not encontrado:
+                                self._cursos_ou_disciplinas_proximos_ao_nao_encontrado(args, 0)
+                        elif funcionalidade == 'ddtc':
+                            self.dados_de_todos_os_cursos()
+                        if funcionalidade == 'ddd':
+                            if args[0] == 0:
+                                encontrado = self.dados_da_disciplina_codigo(args[1])
+                                if not encontrado:
+                                    print('Código da disciplina não foi encontrado.')
+                            else:
+                                encontrado = self.dados_da_disciplina_nome(args[1])
+                                if not encontrado:
+                                    self._cursos_ou_disciplinas_proximos_ao_nao_encontrado(args, 1)
+                        if funcionalidade == 'ddmc':
+                            self.disciplinas_usadas_em_mais_de_um_curso()
+                    else:
+                        print(args)
+                else:
+                    print("Funcionalidade enviada não existe, tente novamente.")
+            else:
+                print("É necessario enviar pelo menos uma funcionalidade valida.")

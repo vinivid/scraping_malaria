@@ -1,7 +1,7 @@
 [project]
-name = "last-mal"
-version = "0.1.0"
-description = "Add your description here"
+name = "scrape-usp"
+version = "1.0.0"
+description = "Esse programa faz o scrape dos dados da usp e permite consultas interativas."
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [

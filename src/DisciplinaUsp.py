@@ -120,6 +120,15 @@ class DisciplinaUsp:
         """
         return self.ATPA
 
+    def get_cursos(self) -> list[str]:
+        """
+        Pega uma lista dos cursos que tem essa disciplina como parte da grade curricular.
+
+        :return: Lista dos cursos que tem essa disciplina.
+        :rtype: list[str]
+        """
+        return self.cursos
+
     def __str__(self) -> str:
         disciplina_str = f'\nCódigo: {self.codigo}'
         disciplina_str += f'\nNome: {self.nome}'
@@ -131,5 +140,5 @@ class DisciplinaUsp:
         disciplina_str += f'\nAtividades TPA: {self.ATPA}'
         disciplina_str += "\nCursos do qual faz parte:\n"
         for curso in self.cursos:
-            disciplina_str += f'{curso}\n'
+            disciplina_str += f'\t{curso}\n'
         return disciplina_str
